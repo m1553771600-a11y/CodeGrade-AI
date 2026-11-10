@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: code_eval_postgres
+    environment:
+      POSTGRES_USER: code_eval
+      POSTGRES_PASSWORD: code_eval_dev
+      POSTGRES_DB: code_eval
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # ── Milvus 三件套：etcd（元数据）+ minio（向量数据）+ milvus（业务）──
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.14
+    container_name: code_eval_etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir=/etcd
+    volumes:
+      - etcd_data:/etcd
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: code_eval_minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: minio server /data
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    container_name: code_eval_milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: minioadmin
+      MINIO_SECRET_ACCESS_KEY: minioadmin
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+    depends_on:
+      etcd:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend:
+    build: .
+    container_name: code_eval_backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      MILVUS_HOST: milvus
+      MILVUS_PORT: 19530
+      HF_ENDPOINT: https://hf-mirror.com
+    ports:
+      - "8001:8001"
+    depends_on:
+      - postgres
+      - milvus
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    external: true
+    name: code_eval_pgdata
+  etcd_data:
+  minio_data:
+  milvus_data:

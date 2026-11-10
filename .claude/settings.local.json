@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(py --version)",
+      "Bash(echo \"PY_EXIT=$?\")",
+      "Read(//c/Users/Lenovo/AppData/Local/Programs/**)",
+      "Read(//c/Users/Lenovo/**)",
+      "Bash(cmd //c \"where python\")",
+      "Bash(docker --version)",
+      "Bash(pip --version)",
+      "Bash(cmd //c \"where python python3 py 2>nul\")",
+      "Bash(conda --version)"
+    ]
+  }
+}
